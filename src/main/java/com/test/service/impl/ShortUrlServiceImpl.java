@@ -18,12 +18,14 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -54,11 +56,21 @@ public class ShortUrlServiceImpl extends ServiceImpl<ShortUrlMapper, ShortUrl> i
     private String createKeyByLongUrl(String longUrl, String randomStr) {
         long number = Hashing.murmur3_32().hashUnencodedChars(longUrl + randomStr).padToLong();
         String key = NumberHelper.baseConver(String.valueOf(number), 10, 62);
+        log.info("createKeyByLongUrl key={} longUrl={} randomStr={}", key, longUrl, randomStr);
         if (rbloomFilter.contains(key)) {
             //冲突之后，随机拼接字符串继续
             return createKeyByLongUrl(longUrl, RandomUtil.randomString(5));
         } else {
-            save(new ShortUrl().setShortKey(key).setLongUrl(longUrl));
+            try {
+                save(new ShortUrl().setShortKey(key).setLongUrl(longUrl));
+            } catch (DuplicateKeyException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof SQLIntegrityConstraintViolationException) {
+                    //唯一索引重复
+                    log.warn("DuplicateKeyException key={}", key);
+                    return createKeyByLongUrl(longUrl, RandomUtil.randomString(5));
+                }
+            }
             rbloomFilter.add(key);
             return key;
         }

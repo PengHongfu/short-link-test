@@ -49,7 +49,7 @@ CREATE TABLE `short_url` (
   `long_url` varchar(2048) NOT NULL COMMENT '长链接',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
-  KEY `idx_key` (`key`) USING BTREE
+  UNIQUE KEY `uni_key` (`key`) USING BTREE
 ) ENGINE=InnoDB  COMMENT='短链接表';
 ```
 也可以使用redis存储
